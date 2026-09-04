@@ -50,6 +50,12 @@ Use `http://localhost:5000` as the request base URL.
 
 The market route currently uses deterministic demo data. The adapter boundary is deliberately isolated so a production provider can be added without changing the watchlist or UI contract. Quotes are marked delayed, and the UI exposes freshness instead of pretending market data is real-time.
 
+## Deploy with Render
+
+The repository includes `render.yaml` for a backend web service and a static frontend. In Render, choose **New > Blueprint**, connect this GitHub repository, and select the blueprint. Set `MONGODB_URI` on `signal-api` to a MongoDB Atlas connection string. After the backend deploys, set `VITE_API_URL` on `signal-client` to the backend URL followed by `/api`, for example `https://signal-api.onrender.com/api`, then redeploy the client.
+
+For MongoDB Atlas, allow the Render outbound connection in Network Access during the demo, create a database user, and use the encoded connection string as the Render secret. Do not place that value in this repository.
+
 ## Submission and commits
 
 Yes: submit the **GitHub repository link** in the HackerEarth submission form, along with any required demo URL or video fields. Make the repository public if judges need direct access, and include a clear README, screenshots, setup steps, and a short architecture explanation.
