@@ -29,7 +29,7 @@ app.get('/api/health', (_request, response) => response.json({ ok: true, service
 app.get('/api/market/quotes', async (request, response) => {
   const symbols = (request.query.symbols || Object.keys(fallbackQuotes)).split(',').map((symbol) => symbol.trim().toUpperCase()).filter(Boolean)
   const quotes = await Promise.all(symbols.map(async (symbol) => { const quote = await getQuote(symbol); return { ...quote, signal: classifySignal(quote) } }))
-  response.json({ asOf: new Date().toISOString(), source: 'demo-provider', delayed: true, quotes })
+  response.json({ asOf: new Date().toISOString(), source: 'market-provider', delayed: true, quotes })
 })
 
 app.get('/api/watchlist', async (_request, response) => {
