@@ -1,0 +1,67 @@
+const express = require('express')
+const cors = require('cors')
+const mongoose = require('mongoose')
+require('dotenv').config()
+
+const app = express()
+const port = process.env.PORT || 5000
+app.use(cors())
+app.use(express.json())
+
+const holdingSchema = new mongoose.Schema({
+  symbol: { type: String, required: true, unique: true, uppercase: true, trim: true },
+  name: { type: String, required: true },
+  lastSeenPrice: Number,
+  lastSeenAt: Date,
+}, { timestamps: true })
+const Holding = mongoose.model('Holding', holdingSchema)
+
+const demoMarket = {
+  NVDA: { name: 'NVIDIA Corporation', price: 177.22, change: 4.82, volumeRatio: 2.4 },
+  RELIANCE: { name: 'Reliance Industries', price: 1431.65, change: -2.14, volumeRatio: 3.1 },
+  AAPL: { name: 'Apple Inc.', price: 233.98, change: 1.08, volumeRatio: 1.4 },
+  TCS: { name: 'Tata Consultancy Services', price: 3122.40, change: 0.42, volumeRatio: 0.9 },
+}
+
+function classifySignal(quote) {
+  if (quote.volumeRatio >= 2.5) return { label: 'Unusual volume', detail: `Volume is ${quote.volumeRatio}x higher than usual ahead of earnings.` }
+  if (Math.abs(quote.change) >= 3) return { label: 'Breakout', detail: 'Price moved beyond its recent range and deserves a closer look.' }
+  if (Math.abs(quote.change) >= 1) return { label: 'Momentum', detail: 'Relative strength improved after a quiet recent range.' }
+  return { label: 'Steady', detail: 'No meaningful change since your last visit.' }
+}
+
+app.get('/api/health', (_request, response) => response.json({ ok: true, service: 'signal-api' }))
+app.get('/api/market/quotes', (request, response) => {
+  const symbols = (request.query.symbols || Object.keys(demoMarket)).split(',').map((symbol) => symbol.trim().toUpperCase()).filter(Boolean)
+  const quotes = symbols.map((symbol) => {
+    const quote = demoMarket[symbol] || { name: `${symbol} Holdings`, price: 100, change: 0, volumeRatio: 1 }
+    return { symbol, ...quote, signal: classifySignal(quote) }
+  })
+  response.json({ asOf: new Date().toISOString(), source: 'demo-provider', delayed: true, quotes })
+})
+
+app.get('/api/watchlist', async (_request, response) => {
+  try {
+    const holdings = await Holding.find().sort({ createdAt: 1 }).lean()
+    response.json(holdings)
+  } catch (error) { response.status(500).json({ error: 'Could not load watchlist.' }) }
+})
+app.post('/api/watchlist', async (request, response) => {
+  try {
+    const symbol = request.body.symbol?.trim().toUpperCase()
+    if (!symbol) return response.status(400).json({ error: 'A ticker symbol is required.' })
+    const quote = demoMarket[symbol] || { name: `${symbol} Holdings`, price: 100 }
+    const holding = await Holding.create({ symbol, name: quote.name, lastSeenPrice: quote.price, lastSeenAt: new Date() })
+    response.status(201).json(holding)
+  } catch (error) {
+    response.status(error.code === 11000 ? 409 : 500).json({ error: 'Could not add that holding.' })
+  }
+})
+app.delete('/api/watchlist/:symbol', async (request, response) => {
+  await Holding.deleteOne({ symbol: request.params.symbol.toUpperCase() })
+  response.status(204).end()
+})
+
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/signal')
+  .then(() => app.listen(port, () => console.log(`Signal API listening on ${port}`)))
+  .catch(() => app.listen(port, () => console.log(`Signal API listening on ${port} without MongoDB (demo mode)`)))
