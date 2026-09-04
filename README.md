@@ -44,6 +44,7 @@ Use `http://localhost:5000` as the request base URL.
 - `GET /api/health`
 - `GET /api/market/quotes?symbols=NVDA,AAPL,TCS`
 - `GET /api/watchlist`
+- `GET /api/watchlist/changes`
 - `POST /api/watchlist` with JSON `{ "symbol": "NVDA" }`
 - `DELETE /api/watchlist/NVDA`
 
