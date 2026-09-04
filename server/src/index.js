@@ -11,6 +11,7 @@ app.use(express.json())
 const holdingSchema = new mongoose.Schema({
   symbol: { type: String, required: true, unique: true, uppercase: true, trim: true },
   name: { type: String, required: true },
+  previousPrice: Number,
   lastSeenPrice: Number,
   lastSeenAt: Date,
 }, { timestamps: true })
@@ -46,12 +47,24 @@ app.get('/api/watchlist', async (_request, response) => {
     response.json(holdings)
   } catch (error) { response.status(500).json({ error: 'Could not load watchlist.' }) }
 })
+app.get('/api/watchlist/changes', async (_request, response) => {
+  try {
+    const holdings = await Holding.find().sort({ createdAt: 1 }).lean()
+    const changes = holdings.map((holding) => {
+      const quote = demoMarket[holding.symbol] || { name: holding.name, price: holding.lastSeenPrice || 100, change: 0, volumeRatio: 1 }
+      const baseline = holding.lastSeenPrice || quote.price
+      const sinceLastChecked = baseline ? ((quote.price - baseline) / baseline) * 100 : 0
+      return { ...holding, quote, sinceLastChecked: Number(sinceLastChecked.toFixed(2)), meaningful: Math.abs(sinceLastChecked) >= 1 || quote.volumeRatio >= 2 }
+    })
+    response.json({ checkedAt: new Date().toISOString(), changes })
+  } catch (_error) { response.status(500).json({ error: 'Could not calculate watchlist changes.' }) }
+})
 app.post('/api/watchlist', async (request, response) => {
   try {
     const symbol = request.body.symbol?.trim().toUpperCase()
     if (!symbol) return response.status(400).json({ error: 'A ticker symbol is required.' })
     const quote = demoMarket[symbol] || { name: `${symbol} Holdings`, price: 100 }
-    const holding = await Holding.create({ symbol, name: quote.name, lastSeenPrice: quote.price, lastSeenAt: new Date() })
+    const holding = await Holding.create({ symbol, name: quote.name, previousPrice: quote.price, lastSeenPrice: quote.price, lastSeenAt: new Date() })
     response.status(201).json(holding)
   } catch (error) {
     response.status(error.code === 11000 ? 409 : 500).json({ error: 'Could not add that holding.' })
